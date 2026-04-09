@@ -71,6 +71,13 @@ def get_customers(city: str = Query(None), starts_with: str = Query(None)):
     </html>
     """
 
+
+# ---- CUSTOMERS ----
+@app.get("/customersdata")
+def get_customers(city: str = Query(None), starts_with: str = Query(None)):
+    filtered = filter_data(customers, city, starts_with)
+    return filtered
+
 # ---- VENDORS ----
 @app.get("/vendors", response_class=HTMLResponse)
 def get_vendors(city: str = Query(None), starts_with: str = Query(None)):
