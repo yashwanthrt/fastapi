@@ -1,0 +1,94 @@
+from fastapi import FastAPI
+from pydantic import BaseModel
+
+app = FastAPI()
+
+# ---- DATA ----
+products = [
+    {"name": "iPhone 14", "category": "mobile", "price": 70000, "stock": 5},
+    {"name": "Samsung Galaxy S23", "category": "mobile", "price": 65000, "stock": 8},
+    {"name": "MacBook Air M2", "category": "laptop", "price": 110000, "stock": 3},
+    {"name": "Dell Inspiron", "category": "laptop", "price": 55000, "stock": 6},
+]
+
+orders = [
+    {"order_id": "ORD123", "product": "iPhone 14", "status": "shipped"},
+    {"order_id": "ORD124", "product": "MacBook Air M2", "status": "processing"},
+]
+
+faqs = {
+    "delivery": "Delivery takes 3-5 business days.",
+    "refund": "Refunds are processed within 7 days.",
+    "warranty": "All products come with 1 year warranty."
+}
+
+# ---- MODEL ----
+class ChatRequest(BaseModel):
+    message: str
+
+# ---- HELPER ----
+def find_product(msg):
+    for p in products:
+        if p["name"].lower().split()[0] in msg:
+            return p
+    return None
+
+# ---- CHAT ----
+@app.post("/chat")
+def chat(req: ChatRequest):
+    msg = req.message.lower()
+
+    # 1. Greeting
+    if any(word in msg for word in ["hi", "hello", "hey"]):
+        return {"reply": "Hey 👋 Welcome! You can ask about products, orders, or help."}
+
+    # 2. Show products
+    if "products" in msg or "show" in msg:
+        return {
+            "reply": "Here are our products:",
+            "data": [p["name"] for p in products]
+        }
+
+    # 3. Category queries
+    if "laptop" in msg:
+        laptops = [p["name"] for p in products if p["category"] == "laptop"]
+        return {"reply": "Available laptops:", "data": laptops}
+
+    if "mobile" in msg or "phone" in msg:
+        mobiles = [p["name"] for p in products if p["category"] == "mobile"]
+        return {"reply": "Available mobiles:", "data": mobiles}
+
+    # 4. Price check
+    if "price" in msg:
+        p = find_product(msg)
+        if p:
+            return {"reply": f"{p['name']} costs ₹{p['price']}"}
+        return {"reply": "Please mention a valid product"}
+
+    # 5. Stock check
+    if "stock" in msg or "available" in msg:
+        p = find_product(msg)
+        if p:
+            return {"reply": f"{p['name']} has {p['stock']} units available"}
+        return {"reply": "Product not found"}
+
+    # 6. Order tracking
+    if "order" in msg or "track" in msg:
+        for o in orders:
+            if o["order_id"].lower() in msg:
+                return {"reply": f"Order {o['order_id']} is {o['status']}"}
+        return {"reply": "Please provide a valid order ID (e.g., ORD123)"}
+
+    # 7. FAQs
+    for key in faqs:
+        if key in msg:
+            return {"reply": faqs[key]}
+
+    # 8. Help
+    if "help" in msg:
+        return {
+            "reply": "You can ask:\n- show products\n- price of item\n- track order ORD123\n- delivery info"
+        }
+
+    # 9. Fallback
+    return {"reply": "I didn’t understand. Type 'help' to see what I can do."}
