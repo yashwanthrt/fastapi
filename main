@@ -1,94 +1,92 @@
-from fastapi import FastAPI
-from pydantic import BaseModel
+from fastapi import FastAPI, Query
+from fastapi.responses import HTMLResponse
 
 app = FastAPI()
 
 # ---- DATA ----
-products = [
-    {"name": "iPhone 14", "category": "mobile", "price": 70000, "stock": 5},
-    {"name": "Samsung Galaxy S23", "category": "mobile", "price": 65000, "stock": 8},
-    {"name": "MacBook Air M2", "category": "laptop", "price": 110000, "stock": 3},
-    {"name": "Dell Inspiron", "category": "laptop", "price": 55000, "stock": 6},
+customers = [
+    {"id": 1, "name": "Ravi Kumar", "city": "Hyderabad"},
+    {"id": 2, "name": "Anjali Sharma", "city": "Delhi"},
+    {"id": 3, "name": "Rahul Reddy", "city": "Bangalore"},
+    {"id": 4, "name": "Ramesh Gupta", "city": "Hyderabad"},
+    {"id": 5, "name": "Sneha Verma", "city": "Mumbai"},
+    {"id": 6, "name": "Ritika Singh", "city": "Hyderabad"},
+    {"id": 7, "name": "Arjun Mehta", "city": "Delhi"},
 ]
 
-orders = [
-    {"order_id": "ORD123", "product": "iPhone 14", "status": "shipped"},
-    {"order_id": "ORD124", "product": "MacBook Air M2", "status": "processing"},
+vendors = [
+    {"id": 101, "name": "ABC Electronics", "product": "Mobiles", "city": "Hyderabad"},
+    {"id": 102, "name": "XYZ Laptops", "product": "Laptops", "city": "Bangalore"},
+    {"id": 103, "name": "TechWorld", "product": "Accessories", "city": "Mumbai"},
+    {"id": 104, "name": "Reddy Mobiles", "product": "Mobiles", "city": "Hyderabad"},
+    {"id": 105, "name": "Digital Hub", "product": "Laptops", "city": "Delhi"},
 ]
 
-faqs = {
-    "delivery": "Delivery takes 3-5 business days.",
-    "refund": "Refunds are processed within 7 days.",
-    "warranty": "All products come with 1 year warranty."
-}
+# ---- HOME ----
+@app.get("/", response_class=HTMLResponse)
+def home():
+    return """
+    <html>
+        <body style="font-family: Arial; text-align:center; margin-top:50px;">
+            <h1>Dashboard</h1>
+            <a href="/customers"><button>Customers</button></a>
+            <a href="/vendors"><button>Vendors</button></a>
+            <br><br>
+            <p>Try filters:</p>
+            <p>/customers?city=Hyderabad</p>
+            <p>/customers?starts_with=R</p>
+        </body>
+    </html>
+    """
 
-# ---- MODEL ----
-class ChatRequest(BaseModel):
-    message: str
+# ---- FILTER FUNCTION ----
+def filter_data(data, city=None, starts_with=None):
+    result = data
 
-# ---- HELPER ----
-def find_product(msg):
-    for p in products:
-        if p["name"].lower().split()[0] in msg:
-            return p
-    return None
+    if city:
+        result = [d for d in result if d["city"].lower() == city.lower()]
 
-# ---- CHAT ----
-@app.post("/chat")
-def chat(req: ChatRequest):
-    msg = req.message.lower()
+    if starts_with:
+        result = [d for d in result if d["name"].lower().startswith(starts_with.lower())]
 
-    # 1. Greeting
-    if any(word in msg for word in ["hi", "hello", "hey"]):
-        return {"reply": "Hey 👋 Welcome! You can ask about products, orders, or help."}
+    return result
 
-    # 2. Show products
-    if "products" in msg or "show" in msg:
-        return {
-            "reply": "Here are our products:",
-            "data": [p["name"] for p in products]
-        }
+# ---- CUSTOMERS ----
+@app.get("/customers", response_class=HTMLResponse)
+def get_customers(city: str = Query(None), starts_with: str = Query(None)):
+    filtered = filter_data(customers, city, starts_with)
 
-    # 3. Category queries
-    if "laptop" in msg:
-        laptops = [p["name"] for p in products if p["category"] == "laptop"]
-        return {"reply": "Available laptops:", "data": laptops}
+    rows = "".join([
+        f"<li>ID: {c['id']} | {c['name']} - {c['city']}</li>"
+        for c in filtered
+    ])
 
-    if "mobile" in msg or "phone" in msg:
-        mobiles = [p["name"] for p in products if p["category"] == "mobile"]
-        return {"reply": "Available mobiles:", "data": mobiles}
+    return f"""
+    <html>
+        <body style="font-family: Arial; padding:20px;">
+            <h2>Customers</h2>
+            <ul>{rows}</ul>
+            <a href="/">⬅ Back</a>
+        </body>
+    </html>
+    """
 
-    # 4. Price check
-    if "price" in msg:
-        p = find_product(msg)
-        if p:
-            return {"reply": f"{p['name']} costs ₹{p['price']}"}
-        return {"reply": "Please mention a valid product"}
+# ---- VENDORS ----
+@app.get("/vendors", response_class=HTMLResponse)
+def get_vendors(city: str = Query(None), starts_with: str = Query(None)):
+    filtered = filter_data(vendors, city, starts_with)
 
-    # 5. Stock check
-    if "stock" in msg or "available" in msg:
-        p = find_product(msg)
-        if p:
-            return {"reply": f"{p['name']} has {p['stock']} units available"}
-        return {"reply": "Product not found"}
+    rows = "".join([
+        f"<li>ID: {v['id']} | {v['name']} - {v['product']} ({v['city']})</li>"
+        for v in filtered
+    ])
 
-    # 6. Order tracking
-    if "order" in msg or "track" in msg:
-        for o in orders:
-            if o["order_id"].lower() in msg:
-                return {"reply": f"Order {o['order_id']} is {o['status']}"}
-        return {"reply": "Please provide a valid order ID (e.g., ORD123)"}
-
-    # 7. FAQs
-    for key in faqs:
-        if key in msg:
-            return {"reply": faqs[key]}
-
-    # 8. Help
-    if "help" in msg:
-        return {
-            "reply": "You can ask:\n- show products\n- price of item\n- track order ORD123\n- delivery info"
-        }
-
-    # 9. Fallback
-    return {"reply": "I didn’t understand. Type 'help' to see what I can do."}
+    return f"""
+    <html>
+        <body style="font-family: Arial; padding:20px;">
+            <h2>Vendors</h2>
+            <ul>{rows}</ul>
+            <a href="/">⬅ Back</a>
+        </body>
+    </html>
+    """
